@@ -63,3 +63,21 @@ test('sync panel posts credentials to agent', async () => {
   await userEvent.click(screen.getByText('Đồng bộ ngay'))
   await waitFor(() => expect(calls.some((c) => c.url.endsWith('/sync'))).toBe(true))
 })
+
+test('recorder sends text and key steps', async () => {
+  rows = [{ ...newRow(), id: 1, name: 'r1', game_id: 'g1', state: 'idle' }]
+  render(<App />)
+  await screen.findByDisplayValue('r1')
+  await userEvent.click(screen.getByLabelText('Thêm hành động'))
+  await userEvent.click(screen.getByText('Ghi lại macro'))
+  await userEvent.click(await screen.findByText('Quét máy'))
+  await userEvent.selectOptions(await screen.findByLabelText('Máy ghi'), 'emulator-5554')
+  await userEvent.click(screen.getByText('Bắt đầu ghi'))
+  await userEvent.type(await screen.findByLabelText('Nội dung gõ'), 'abc def')
+  await userEvent.click(screen.getByText('Gõ chữ'))
+  await userEvent.click(screen.getByText('Enter'))
+  await waitFor(() => expect(calls.some((c) => c.url.endsWith('/recorder/key'))).toBe(true))
+  const body = (p: string) => JSON.parse(calls.find((c) => c.url.endsWith(p))!.body!)
+  expect(body('/recorder/text')).toEqual({ value: 'abc def' })
+  expect(body('/recorder/key')).toEqual({ keycode: 66 })
+})
