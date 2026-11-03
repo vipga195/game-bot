@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
@@ -18,7 +20,16 @@ from .core.runner import RowRunner
 from .core.scheduler import Scheduler, start_background
 from .db import connect, init_db
 from .device import Device, connect_serial
-from .emulators import AdbGenericDriver, LDPlayerDriver, Registry
+from .emulators import (
+    AdbGenericDriver,
+    AndroidEmulatorDriver,
+    BlueStacksDriver,
+    GenymotionDriver,
+    LDPlayerDriver,
+    MEmuDriver,
+    NoxDriver,
+    Registry,
+)
 from .play import Recorder
 from .script import AssetStore
 from .script.repo import ScriptRepo
@@ -26,7 +37,18 @@ from .sync import SyncClient
 
 
 def default_registry() -> Registry:
-    return Registry([LDPlayerDriver(), AdbGenericDriver()])
+    drivers = [
+        LDPlayerDriver(),
+        MEmuDriver(),
+        NoxDriver(),
+        AndroidEmulatorDriver(),
+        GenymotionDriver(),
+        AdbGenericDriver(),
+    ]
+    conf = os.environ.get("BLUESTACKS_CONF")  # path to bluestacks.conf
+    if conf and Path(conf).exists():
+        drivers.insert(0, BlueStacksDriver(lambda: Path(conf).read_text(errors="ignore")))
+    return Registry(drivers)
 
 
 class AccountIn(BaseModel):
@@ -70,6 +92,11 @@ def create_app(
 ) -> FastAPI:
     data = Path(data_dir or os.environ.get("GAMEBOT_DATA", Path.home() / ".gamebot"))
     data.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        handlers=[RotatingFileHandler(data / "gamebot.log", maxBytes=2_000_000, backupCount=3)],
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     conn = connect(str(data / "gamebot.sqlite3"), check_same_thread=False)
     init_db(conn)
     registry = registry or default_registry()
@@ -79,6 +106,7 @@ def create_app(
     events: list[dict] = []
 
     def on_event(e: dict) -> None:
+        logging.getLogger("gamebot.sched").info("%s", {k: v for k, v in e.items() if k != "x"})
         events.append({**e, "ts": datetime.now(UTC).isoformat()})
         del events[:-200]
 
