@@ -52,12 +52,25 @@ class Recorder:
         self.assets.crop_region(asset, img, region)
         self.script.screens.setdefault(name, []).append(asset)
 
-    def record_tap(self, x: int, y: int, from_screen=None, to_screen=None, ax="c", ay="c") -> Step:
-        img = decode(self.dev.screencap())
+    def record_tap(
+        self,
+        x: int,
+        y: int,
+        from_screen=None,
+        to_screen=None,
+        ax="c",
+        ay="c",
+        img=None,
+        execute=True,
+    ) -> Step:
+        """`execute=False` records a tap the user already made on the emulator (pass `img`)."""
+        if img is None:
+            img = decode(self.dev.screencap())
         step_id = f"s{len(self.script.steps) + 1}"
         self.assets.crop(f"{step_id}_tpl", img, x, y)
-        self.dev.tap(x, y)
-        self.sleep(0.8)
+        if execute:
+            self.dev.tap(x, y)
+            self.sleep(0.8)
         return self._add(
             action="tap",
             template=f"{step_id}_tpl",
@@ -66,9 +79,12 @@ class Recorder:
             to_screen=to_screen,
         )
 
-    def record_swipe(self, x1, y1, x2, y2, ms=300, from_screen=None, to_screen=None) -> Step:
-        self.dev.swipe(x1, y1, x2, y2, ms)
-        self.sleep(0.8)
+    def record_swipe(
+        self, x1, y1, x2, y2, ms=300, from_screen=None, to_screen=None, execute=True
+    ) -> Step:
+        if execute:
+            self.dev.swipe(x1, y1, x2, y2, ms)
+            self.sleep(0.8)
         return self._add(
             action="swipe",
             point=self._pt(x1, y1),

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -30,7 +31,7 @@ from .emulators import (
     NoxDriver,
     Registry,
 )
-from .play import Recorder
+from .play import LiveRecorder, Recorder, iter_lines
 from .script import AssetStore
 from .script.repo import ScriptRepo
 from .sync import SyncClient
@@ -130,6 +131,7 @@ def create_app(
     )
     app.state.registry, app.state.scheduler, app.state.conn = registry, sched, conn
     rec: dict[str, Recorder] = {}
+    rec_live: dict[str, LiveRecorder] = {}
     make_dev = device_factory or (lambda serial: Device(connect_serial(serial)))
 
     @app.get("/health")
@@ -231,6 +233,27 @@ def create_app(
         s = cur().record_tap(b.x, b.y, b.from_screen, b.to_screen)
         return s.model_dump()
 
+    @app.post("/recorder/live/start")
+    def rec_live_start() -> dict:
+        """Record gestures made directly on the emulator via `getevent`."""
+        r = cur()
+        if "live" in rec_live:
+            raise HTTPException(409, "live recording already running")
+        try:
+            live = LiveRecorder(r, iter_lines(r.dev.getevent_stream()), r.dev.getevent_props())
+        except (RuntimeError, AttributeError) as e:
+            raise HTTPException(400, str(e)) from e
+        rec_live["live"] = live
+        threading.Thread(target=live.run, daemon=True).start()
+        return {"live": True}
+
+    @app.post("/recorder/live/stop")
+    def rec_live_stop() -> dict:
+        live = rec_live.pop("live", None)
+        if live:
+            live.stop.set()
+        return {"steps": len(cur().script.steps)}
+
     @app.post("/recorder/mark")
     def rec_mark(b: MarkIn) -> dict:
         cur().mark_screen(b.name, b.region)
@@ -238,6 +261,8 @@ def create_app(
 
     @app.post("/recorder/finish")
     def rec_finish() -> dict:
+        if live := rec_live.pop("live", None):
+            live.stop.set()
         script = cur().finish()
         ScriptRepo(conn).save(script)
         rec.pop("cur")

@@ -31,8 +31,8 @@ Plan: [docs/PLAN.md](docs/PLAN.md). Đóng gói: [docs/PACKAGING.md](docs/PACKAG
 ## Chưa kiểm chứng / hạn chế
 
 - Chưa chạy với giả lập hay game thật (máy phát triển chỉ có `adb`). Định dạng output ldconsole/memuc/NoxConsole/gmtool, cổng ADB của Nox/MEmu/BlueStacks là giả định cần kiểm tra trên máy thật.
-- Recorder ghi qua UI (người dùng bấm trên ảnh màn hình live, agent thực hiện và ghi); chưa bắt thao tác trực tiếp trên cửa sổ giả lập (`getevent`).
-- OCR (`rapidocr-onnxruntime`) là phụ thuộc tuỳ chọn, chưa cài/chạy; chỉ kiểm thử qua OCR giả. Python 3.15 trên máy này có thể chưa có wheel.
+- Recorder: ngoài chế độ qua UI còn có chế độ bắt trực tiếp từ giả lập (`getevent -lt`, endpoint `/recorder/live/start|stop`, parse tap/swipe một ngón, màn hình dọc); mới kiểm thử bằng output getevent mẫu, chưa chạy trên giả lập thật (định dạng `getevent` và thiết bị cảm ứng có thể khác theo giả lập; chưa xử lý xoay màn hình).
+- OCR (`rapidocr-onnxruntime`, extra `ocr`): đã chạy OCR thật trên ảnh mẫu (Python 3.13, đọc đúng "02:15:00" -> 8100s), test tự skip nếu thiếu dependency. `onnxruntime` chưa có wheel cho Python 3.15 (venv mặc định của agent) nên cần Python 3.11-3.14 để dùng OCR; chưa thử trên ảnh game thật và chưa đóng gói PyInstaller kèm OCR.
 - Sync: xoá rows/scripts/games/accounts lan sang máy khác qua tombstone (last-write-wins; tạo lại cùng tên sau khi xoá thì bản mới thắng); thống kê bước dùng tổng số lần chạy làm version; dòng đồng bộ theo `name` (gắn máy giả lập giữ cục bộ).
 - Chưa có xác thực/phân quyền ngoài token, rate limit chỉ in-memory theo process, theo IP/user (sau reverse proxy cần chuyển tiếp IP thật, nếu không mọi client chung một IP); server CDM thật chưa biết API nên dựng server mới.
 - Game có thể cấm bot; dùng có rủi ro khoá tài khoản.
