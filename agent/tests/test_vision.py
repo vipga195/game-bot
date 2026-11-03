@@ -1,4 +1,6 @@
 import cv2
+import numpy as np
+import pytest
 from pytest import approx as pytest_approx
 
 from gamebot.vision import find_template, identify_screen, letterbox, parse_countdown
@@ -41,3 +43,12 @@ def test_countdown():
     assert parse_countdown("15:30") == 930
     assert parse_countdown("2h 15m") == 8100
     assert parse_countdown("abc") is None
+
+
+def test_rapidocr_reads_real_image():
+    pytest.importorskip("rapidocr_onnxruntime")
+    from gamebot.vision.ocr import RapidOcr, parse_countdown
+
+    img = np.full((120, 480, 3), 255, np.uint8)
+    cv2.putText(img, "Ready in 02:15:00", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 0, 0), 3)
+    assert parse_countdown(RapidOcr().read(img)) == 8100

@@ -51,6 +51,18 @@ class Device:
         esc = esc.replace("\\%s", "%s")
         self._s(f"input text {esc}")
 
+    def getevent_props(self) -> str:
+        return self._s("getevent -lp")
+
+    def getevent_stream(self):
+        """Yield raw chunks of `getevent -lt` until the caller stops iterating."""
+        conn = self.sh.shell("getevent -lt", stream=True)  # type: ignore[call-arg]
+        try:
+            while chunk := conn.read(4096):
+                yield chunk
+        finally:
+            conn.close()
+
     def start_app(self, package: str) -> None:
         self._s(f"monkey -p {package} -c android.intent.category.LAUNCHER 1")
 
