@@ -2,10 +2,10 @@ import { useState } from 'react'
 import type { Row } from './api'
 import { RecorderPanel } from './RecorderPanel'
 import { RowsTable } from './RowsTable'
-import { SyncPanel } from './SyncPanel'
+import { SettingsPanel } from './SettingsPanel'
 import './index.css'
 
-type Tab = 'rows' | 'recorder' | 'sync'
+type Tab = 'rows' | 'recorder' | 'settings'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('rows')
@@ -14,13 +14,13 @@ export default function App() {
     <main>
       <h1>Game Bot</h1>
       <nav>
-        <button aria-pressed={tab === 'rows'} onClick={() => setTab('rows')}>Quản lý</button>
-        <button aria-pressed={tab === 'recorder'} onClick={() => setTab('recorder')}>Recorder</button>
-        <button aria-pressed={tab === 'sync'} onClick={() => setTab('sync')}>Đồng bộ</button>
+        <button aria-pressed={tab === 'rows'} onClick={() => setTab('rows')}>Bot</button>
+        <button aria-pressed={tab === 'recorder'} onClick={() => setTab('recorder')}>Ghi macro</button>
+        <button aria-pressed={tab === 'settings'} onClick={() => setTab('settings')}>Cài đặt</button>
       </nav>
       {tab === 'rows' && <RowsTable onTeach={(r) => { setTeachRow(r); setTab('recorder') }} />}
       {tab === 'recorder' && <RecorderPanel row={teachRow} />}
-      {tab === 'sync' && <SyncPanel />}
+      {tab === 'settings' && <SettingsPanel />}
     </main>
   )
 }

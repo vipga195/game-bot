@@ -30,7 +30,7 @@ afterEach(() => vi.unstubAllGlobals())
 test('shows rows with state and available emulators', async () => {
   render(<App />)
   expect(await screen.findByDisplayValue('r1')).toBeInTheDocument()
-  expect(screen.getByText('idle')).toBeInTheDocument()
+  expect(screen.getByText('Nghỉ')).toBeInTheDocument()
   expect(await screen.findByRole('option', { name: /LD0/ })).toBeInTheDocument()
 })
 
@@ -45,14 +45,20 @@ test('changing priority saves reordered modes', async () => {
 test('pause button calls agent', async () => {
   render(<App />)
   await screen.findByDisplayValue('r1')
-  await userEvent.click(screen.getByText('Pause'))
+  await userEvent.click(screen.getByText('Tạm dừng'))
   await waitFor(() => expect(calls.some((c) => c.url.includes('/rows/1/pause?paused=true'))).toBe(true))
   expect(await screen.findByText('Tiếp tục')).toBeInTheDocument()
 })
 
+test('empty rows shows guidance', async () => {
+  rows = []
+  render(<App />)
+  expect(await screen.findByText(/Chưa có dòng nào/)).toBeInTheDocument()
+})
+
 test('sync panel posts credentials to agent', async () => {
   render(<App />)
-  await userEvent.click(screen.getByText('Đồng bộ'))
+  await userEvent.click(screen.getByRole('button', { name: 'Cài đặt' }))
   await userEvent.type(screen.getByLabelText('Token'), 'tok')
   await userEvent.click(screen.getByText('Đồng bộ ngay'))
   await waitFor(() => expect(calls.some((c) => c.url.endsWith('/sync'))).toBe(true))

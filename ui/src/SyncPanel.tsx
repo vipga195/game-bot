@@ -8,7 +8,6 @@ export function SyncPanel() {
   const [out, setOut] = useState('')
   return (
     <section>
-      <h2>Đồng bộ server</h2>
       <form onSubmit={async (e) => {
         e.preventDefault()
         try {
