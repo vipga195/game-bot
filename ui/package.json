@@ -69,7 +69,8 @@
     "mac": {
       "target": [
         "dir"
-      ]
+      ],
+      "identity": null
     }
   }
 }
