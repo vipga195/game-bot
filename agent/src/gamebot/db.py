@@ -84,8 +84,8 @@ SQL_TABLES: tuple[str, ...] = (
 )
 
 
-def connect(path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(path)
+def connect(path: str, check_same_thread: bool = True) -> sqlite3.Connection:
+    conn = sqlite3.connect(path, check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")

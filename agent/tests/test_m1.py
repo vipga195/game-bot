@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from gamebot.core.accounts import MemoryVault
 from gamebot.db import connect, init_db
 from gamebot.device import Device
 from gamebot.emulators import AdbGenericDriver, LDPlayerDriver, Registry
@@ -88,8 +89,8 @@ def test_device_input_and_screen():
     assert (info.width, info.height, info.dpi) == (720, 1280, 320)
 
 
-def test_api():
+def test_api(tmp_path):
     reg = Registry([LDPlayerDriver("ldc", lambda a: LIST2)])
-    c = TestClient(create_app(reg))
+    c = TestClient(create_app(reg, tmp_path, MemoryVault()))
     assert c.get("/health").json() == {"status": "ok"}
     assert len(c.get("/instances").json()) == 2
