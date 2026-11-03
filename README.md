@@ -26,7 +26,7 @@ Plan: [docs/PLAN.md](docs/PLAN.md). Đóng gói: [docs/PACKAGING.md](docs/PACKAG
 | M6 sync (server LWW + lịch sử xung đột, blob ảnh mẫu, mật khẩu mã hoá AES-GCM/PBKDF2) | xong, test 2 client; chưa thử Postgres thật |
 | UI (bảng dòng, recorder, sync, trạng thái live qua WebSocket) | build + 4 test; chưa kiểm thử với agent + giả lập thật |
 | M7 driver BlueStacks/Nox/MEmu/Android Emulator/Genymotion | viết theo tài liệu/trí nhớ, chỉ test parsing bằng mock |
-| M8 log xoay vòng, hướng dẫn đóng gói | installer/auto-update chưa làm |
+| M8 log xoay vòng, vỏ Electron (`ui/electron`, chạy dev + `--dir` macOS OK), cấu hình NSIS + auto-update | installer Windows và auto-update chưa kiểm chứng; chưa build agent PyInstaller |
 
 ## Chưa kiểm chứng / hạn chế
 
