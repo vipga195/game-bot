@@ -48,6 +48,16 @@ SQL_TABLES: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS accounts (
+        id TEXT PRIMARY KEY,
+        game_id TEXT,
+        label TEXT,
+        username TEXT,
+        updated_at TEXT,
+        version INTEGER DEFAULT 1
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS learn_log (
         id INTEGER PRIMARY KEY,
         script_id TEXT,

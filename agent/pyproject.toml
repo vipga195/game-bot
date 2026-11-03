@@ -9,6 +9,8 @@ dependencies = [
   "adbutils>=2.8",
   "numpy>=2.4.6",
   "opencv-python-headless>=5.0.0.93",
+  "keyring>=25.7.0",
+  "apscheduler>=3.11.3",
 ]
 
 [dependency-groups]
