@@ -8,6 +8,7 @@ export function RecorderPanel({ row }: { row: Row | null }) {
   const [screenName, setScreenName] = useState('')
   const [fromScreen, setFromScreen] = useState('')
   const [toScreen, setToScreen] = useState('')
+  const [text, setText] = useState('')
   const [src, setSrc] = useState('')
   const [msg, setMsg] = useState('')
   const img = useRef<HTMLImageElement>(null)
@@ -27,6 +28,17 @@ export function RecorderPanel({ row }: { row: Row | null }) {
       refresh()
     }, `Đã ghi bước tại (${x}, ${y})`)
   }
+
+  const scr = () => ({ from_screen: fromScreen || undefined, to_screen: toScreen || undefined })
+  const sendText = () => run(async () => {
+    await api.recorderText({ value: text, ...scr() })
+    setText('')
+    refresh()
+  }, `Đã ghi bước gõ chữ: ${text}`)
+  const sendKey = (label: string, keycode: number) => run(async () => {
+    await api.recorderKey({ keycode, ...scr() })
+    refresh()
+  }, `Đã ghi phím ${label}`)
 
   return (
     <section>
@@ -58,6 +70,15 @@ export function RecorderPanel({ row }: { row: Row | null }) {
       </details>
       {msg && <p role="status">{msg}</p>}
       {src && <div className="bar"><button onClick={refresh}>Làm mới màn hình</button></div>}
+      {src && (
+        <div className="bar">
+          <input aria-label="Nội dung gõ" placeholder="Chữ cần gõ (hoặc {username})" value={text} onChange={(e) => setText(e.target.value)} />
+          <button disabled={!text} onClick={sendText}>Gõ chữ</button>
+          <button onClick={() => sendKey('Enter', 66)}>Enter</button>
+          <button onClick={() => sendKey('Back', 4)}>Back</button>
+          <button onClick={() => sendKey('Home', 3)}>Home</button>
+        </div>
+      )}
       {src && <img ref={img} src={src} alt="Màn hình giả lập" className="screen" onClick={onClick} />}
     </section>
   )

@@ -55,6 +55,10 @@ export const api = {
   recorderScreenUrl: () => `${BASE}/recorder/screen?t=${Date.now()}`,
   recorderTap: (b: { x: number; y: number; from_screen?: string; to_screen?: string }) =>
     post('/recorder/tap', b),
+  recorderText: (b: { value: string; from_screen?: string; to_screen?: string }) =>
+    post('/recorder/text', b),
+  recorderKey: (b: { keycode: number; from_screen?: string; to_screen?: string }) =>
+    post('/recorder/key', b),
   recorderMark: (b: { name: string; region?: [number, number, number, number] }) => post('/recorder/mark', b),
   recorderFinish: () => post<{ script_id: string; steps: number }>('/recorder/finish'),
   sync: (b: { url: string; token: string; passphrase?: string }) =>

@@ -9,10 +9,11 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .core.accounts import AccountRepo, KeyringVault, Vault
 from .core.games import Game, GameRepo
@@ -69,6 +70,18 @@ class RecorderStart(BaseModel):
 class TapIn(BaseModel):
     x: int
     y: int
+    from_screen: str | None = None
+    to_screen: str | None = None
+
+
+class TextIn(BaseModel):
+    value: str
+    from_screen: str | None = None
+    to_screen: str | None = None
+
+
+class KeyIn(BaseModel):
+    keycode: int | Annotated[str, Field(pattern=r"^KEYCODE_[A-Z0-9_]+$")]
     from_screen: str | None = None
     to_screen: str | None = None
 
@@ -232,6 +245,14 @@ def create_app(
     def rec_tap(b: TapIn) -> dict:
         s = cur().record_tap(b.x, b.y, b.from_screen, b.to_screen)
         return s.model_dump()
+
+    @app.post("/recorder/text")
+    def rec_text(b: TextIn) -> dict:
+        return cur().record_text(b.value, b.from_screen, b.to_screen).model_dump()
+
+    @app.post("/recorder/key")
+    def rec_key(b: KeyIn) -> dict:
+        return cur().record_key(b.keycode, b.from_screen, b.to_screen).model_dump()
 
     @app.post("/recorder/live/start")
     def rec_live_start() -> dict:
