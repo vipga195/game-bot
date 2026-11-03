@@ -156,7 +156,9 @@ class Player:
             if self._perform(step, img):
                 break
             if attempt == self.cfg.retries:
-                if not self.hooks.recover(self, step, img) or not self._perform(step, img):
+                if not self.hooks.recover(self, step, img):
+                    self._fail(step, "target not found")
+                if not self._perform(step, self.grab()):
                     self._fail(step, "target not found")
                 break
             self.sleep(self.cfg.poll)

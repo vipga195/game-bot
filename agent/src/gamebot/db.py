@@ -1,6 +1,6 @@
 import sqlite3
 
-SQL_TABLES: tuple[str, str, str, str] = (
+SQL_TABLES: tuple[str, ...] = (
     """
     CREATE TABLE IF NOT EXISTS rows (
         id INTEGER PRIMARY KEY,
@@ -45,6 +45,16 @@ SQL_TABLES: tuple[str, str, str, str] = (
         fail INTEGER DEFAULT 0,
         avg_wait_ms REAL,
         PRIMARY KEY(script_id, step_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS learn_log (
+        id INTEGER PRIMARY KEY,
+        script_id TEXT,
+        step_id TEXT,
+        kind TEXT,
+        asset TEXT,
+        created_at TEXT
     )
     """,
 )
