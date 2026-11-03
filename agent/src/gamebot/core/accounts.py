@@ -77,6 +77,13 @@ class AccountRepo:
         self.vault.set(acc.id, password)
         return acc
 
+    def set_password(self, account_id: str, password: str) -> None:
+        self.vault.set(account_id, password)
+        self.conn.execute(
+            "UPDATE accounts SET updated_at=?, version=version+1 WHERE id=?", (now(), account_id)
+        )
+        self.conn.commit()
+
     def get(self, account_id: str) -> Account | None:
         r = self.conn.execute(
             "SELECT id, game_id, label, username FROM accounts WHERE id=?", (account_id,)

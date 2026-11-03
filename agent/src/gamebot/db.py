@@ -58,6 +58,20 @@ SQL_TABLES: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS sync_state (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sync_seen (
+        kind TEXT,
+        id TEXT,
+        version INTEGER,
+        PRIMARY KEY(kind, id)
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS learn_log (
         id INTEGER PRIMARY KEY,
         script_id TEXT,
