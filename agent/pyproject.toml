@@ -7,6 +7,8 @@ dependencies = [
   "uvicorn>=0.30",
   "pydantic>=2.7",
   "adbutils>=2.8",
+  "numpy>=2.4.6",
+  "opencv-python-headless>=5.0.0.93",
 ]
 
 [dependency-groups]
