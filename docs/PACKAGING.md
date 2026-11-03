@@ -39,4 +39,4 @@ Chưa ký số (Windows sẽ hiện SmartScreen); macOS đặt `identity: null`.
 - Agent chỉ lắng nghe 127.0.0.1; CORS cho phép localhost và `app://*` (origin của UI đóng gói là `app://ui`).
 
 ## Server sync
-`cd server && uv run python -m cdmsync create-user <tên>` in token một lần; `CDM_DATABASE_URL=postgresql+psycopg://...` chọn Postgres (mặc định SQLite). Chưa kiểm thử với Postgres thật.
+`cd server && uv run python -m cdmsync create-user <tên>` in token một lần; `CDM_DATABASE_URL=postgresql+psycopg://...` chọn Postgres (mặc định SQLite). Đã kiểm thử với Postgres 16 thật (docker): `CDM_TEST_DB=postgresql+psycopg://... uv run pytest` chạy cả bộ test sync. Rate limit: `CDM_RATE_LIMIT` (request/phút theo IP và theo user, mặc định 120, `0` = tắt).

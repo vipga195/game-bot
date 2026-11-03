@@ -4,6 +4,9 @@ import hashlib
 import json
 import os
 import secrets
+import threading
+import time
+from collections import defaultdict, deque
 from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -78,7 +81,10 @@ def create_user(engine: Engine, name: str) -> str:
     """Returns the plaintext token once; only its hash is stored."""
     token = secrets.token_urlsafe(32)
     with engine.begin() as c:
-        c.execute(users.insert().values(name=name, token_hash=hash_token(token)))
+        uid = c.execute(
+            users.insert().values(name=name, token_hash=hash_token(token))
+        ).inserted_primary_key[0]
+        c.execute(counters.insert().values(user_id=uid, seq=0))
     return token
 
 
@@ -105,7 +111,32 @@ def _wins(inc: Change, cur) -> bool:
     return (inc.updated_at, inc.version) > (cur.updated_at, cur.version)
 
 
-def create_app(db_url: str | None = None) -> FastAPI:
+class RateLimiter:
+    """In-memory sliding window (per process); limit <= 0 disables it."""
+
+    def __init__(self, limit: int, window: float = 60.0) -> None:
+        self.limit, self.window = limit, window
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def allow(self, key: str) -> bool:
+        if self.limit <= 0:
+            return True
+        now = time.monotonic()
+        with self._lock:
+            q = self._hits[key]
+            while q and q[0] <= now - self.window:
+                q.popleft()
+            if len(q) >= self.limit:
+                return False
+            q.append(now)
+            if len(self._hits) > 10_000:  # drop idle keys so the dict cannot grow unbounded
+                for k in [k for k, v in self._hits.items() if not v or v[-1] <= now - self.window]:
+                    del self._hits[k]
+        return True
+
+
+def create_app(db_url: str | None = None, rate_limit: int | None = None) -> FastAPI:
     url = db_url or os.environ.get("CDM_DATABASE_URL", "sqlite:///cdm.sqlite3")
     kw = {"poolclass": __import__("sqlalchemy").pool.StaticPool} if url == "sqlite://" else {}
     if url.startswith("sqlite"):
@@ -114,8 +145,14 @@ def create_app(db_url: str | None = None) -> FastAPI:
     meta.create_all(engine)
     app = FastAPI(title="cdm-sync")
     app.state.engine = engine
+    if rate_limit is None:
+        rate_limit = int(os.environ.get("CDM_RATE_LIMIT", "120"))  # requests/minute, 0 = off
+    limiter = RateLimiter(rate_limit)
 
     def auth(request: Request, authorization: str = Header(default="")) -> int:
+        ip = request.client.host if request.client else "?"
+        if not limiter.allow(f"ip:{ip}"):  # also throttles token guessing
+            raise HTTPException(429, "rate limit exceeded", headers={"Retry-After": "60"})
         token = authorization.removeprefix("Bearer ").strip()
         with request.app.state.engine.begin() as c:
             row = c.execute(
@@ -123,6 +160,8 @@ def create_app(db_url: str | None = None) -> FastAPI:
             ).first()
         if not token or row is None:
             raise HTTPException(401, "invalid token")
+        if not limiter.allow(f"uid:{row[0]}"):
+            raise HTTPException(429, "rate limit exceeded", headers={"Retry-After": "60"})
         return row[0]
 
     @app.get("/health")
@@ -133,7 +172,9 @@ def create_app(db_url: str | None = None) -> FastAPI:
     def sync(req: SyncRequest, uid: int = Depends(auth)) -> dict:
         conflicts = []
         with engine.begin() as c:
-            ctr = c.execute(select(counters.c.seq).where(counters.c.user_id == uid)).first()
+            ctr = c.execute(
+                select(counters.c.seq).where(counters.c.user_id == uid).with_for_update()
+            ).first()  # row lock serializes concurrent syncs of one user (Postgres)
             seq = ctr[0] if ctr else 0
             if not ctr:
                 c.execute(counters.insert().values(user_id=uid, seq=0))
