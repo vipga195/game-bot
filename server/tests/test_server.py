@@ -1,10 +1,25 @@
-from fastapi.testclient import TestClient
+import os
 
-from cdmsync.app import create_app, create_user
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+
+from cdmsync.app import create_app, create_user, meta
+
+# Set CDM_TEST_DB=postgresql+psycopg://... to run the whole suite against Postgres.
+DB = os.environ.get("CDM_TEST_DB", "sqlite://")
+
+
+def fresh_app(**kw):
+    if DB != "sqlite://":
+        e = create_engine(DB)
+        meta.drop_all(e)
+        e.dispose()
+    return create_app(DB, **kw)
 
 
 def setup():
-    app = create_app("sqlite://")
+    app = fresh_app()
     tok = create_user(app.state.engine, "u")
     return TestClient(app), {"Authorization": f"Bearer {tok}"}, app
 
@@ -85,3 +100,43 @@ def test_tombstone_replicates_and_lww_applies():
     # a newer re-create does
     c.post("/sync", json={"changes": [ch("a", 3, "2026-01-03T00:00:00")]}, headers=h)
     assert c.post("/sync", json={"since": 0}, headers=h).json()["changes"][0]["deleted"] is False
+
+
+def test_rate_limit_per_user_and_ip():
+    app = fresh_app(rate_limit=3)
+    tok = create_user(app.state.engine, "u")
+    h = {"Authorization": f"Bearer {tok}"}
+    c = TestClient(app)
+    assert [c.post("/sync", json={}, headers=h).status_code for _ in range(3)] == [200] * 3
+    r = c.post("/sync", json={}, headers=h)
+    assert r.status_code == 429 and r.headers["Retry-After"] == "60"
+    # bad tokens are throttled by IP too (same client already exhausted here)
+    assert c.post("/sync", json={}, headers={"Authorization": "Bearer x"}).status_code == 429
+
+
+def test_rate_limit_disabled():
+    app = fresh_app(rate_limit=0)
+    tok = create_user(app.state.engine, "u")
+    c = TestClient(app)
+    h = {"Authorization": f"Bearer {tok}"}
+    assert all(c.post("/sync", json={}, headers=h).status_code == 200 for _ in range(200))
+
+
+@pytest.mark.skipif(DB == "sqlite://", reason="in-memory SQLite shares one connection")
+def test_concurrent_syncs_get_unique_seq():
+    from concurrent.futures import ThreadPoolExecutor
+
+    from sqlalchemy import text
+
+    c, h, app = setup()
+
+    def go(i):
+        return TestClient(app).post(
+            "/sync", json={"changes": [ch(f"r{i}", 1, "2026-01-01")]}, headers=h
+        )
+
+    with ThreadPoolExecutor(8) as ex:
+        assert all(r.status_code == 200 for r in ex.map(go, range(16)))
+    with app.state.engine.begin() as conn:
+        row = conn.execute(text("SELECT count(*), count(DISTINCT seq) FROM records")).first()
+    assert tuple(row) == (16, 16)
