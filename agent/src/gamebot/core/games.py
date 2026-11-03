@@ -21,16 +21,26 @@ class GameRepo:
     def save(self, g: Game) -> None:
         r = self.conn.execute("SELECT version FROM games WHERE id=?", (g.id,)).fetchone()
         self.conn.execute(
-            "INSERT OR REPLACE INTO games(id, package, profile, updated_at, version)"
-            " VALUES (?,?,?,?,?)",
+            "INSERT OR REPLACE INTO games(id, package, profile, updated_at, version, deleted)"
+            " VALUES (?,?,?,?,?,0)",
             (g.id, g.package, g.model_dump_json(), now(), (r["version"] + 1) if r else 1),
         )
         self.conn.commit()
 
     def get(self, game_id: str) -> Game | None:
-        r = self.conn.execute("SELECT profile FROM games WHERE id=?", (game_id,)).fetchone()
+        r = self.conn.execute(
+            "SELECT profile FROM games WHERE id=? AND deleted=0", (game_id,)
+        ).fetchone()
         return Game.model_validate_json(r["profile"]) if r else None
 
     def list(self) -> list[Game]:
-        rows = self.conn.execute("SELECT profile FROM games").fetchall()
+        rows = self.conn.execute("SELECT profile FROM games WHERE deleted=0").fetchall()
         return [Game.model_validate_json(r["profile"]) for r in rows]
+
+    def delete(self, game_id: str) -> None:
+        """Tombstone: keeps the row so the deletion syncs to other machines."""
+        self.conn.execute(
+            "UPDATE games SET deleted=1, updated_at=?, version=version+1 WHERE id=? AND deleted=0",
+            (now(), game_id),
+        )
+        self.conn.commit()

@@ -54,7 +54,8 @@ class SyncClient:
                     id=r["id"],
                     version=r["version"],
                     updated_at=r["updated_at"],
-                    data=json.loads(r["profile"]),
+                    deleted=bool(r["deleted"]),
+                    data=None if r["deleted"] else json.loads(r["profile"]),
                 )
             )
         for r in c.execute("SELECT * FROM scripts"):
@@ -64,7 +65,8 @@ class SyncClient:
                     id=r["id"],
                     version=r["version"],
                     updated_at=r["updated_at"],
-                    data=json.loads(r["graph"]),
+                    deleted=bool(r["deleted"]),
+                    data=None if r["deleted"] else json.loads(r["graph"]),
                 )
             )
         for r in c.execute("SELECT * FROM accounts"):
@@ -75,10 +77,11 @@ class SyncClient:
                     id=r["id"],
                     version=r["version"],
                     updated_at=r["updated_at"],
-                    data=data,
+                    deleted=bool(r["deleted"]),
+                    data=None if r["deleted"] else data,
                 )
             )
-            if self.passphrase and self.vault:
+            if self.passphrase and self.vault and not r["deleted"]:
                 pw = self.vault.get(r["id"])
                 if pw is not None:
                     out.append(
@@ -104,7 +107,8 @@ class SyncClient:
                     id=r["name"],
                     version=r["version"],
                     updated_at=r["updated_at"],
-                    data=data,
+                    deleted=bool(r["deleted"]),
+                    data=None if r["deleted"] else data,
                 )
             )
         for r in c.execute("SELECT * FROM step_stats"):
@@ -126,20 +130,26 @@ class SyncClient:
         c, k, d = self.conn, ch["kind"], ch["data"]
         v, ts = ch["version"], ch["updated_at"]
         if ch["deleted"]:
-            table = {"game": "games", "script": "scripts", "account": "accounts"}.get(k)
-            if table:
-                c.execute(f"DELETE FROM {table} WHERE id=?", (ch["id"],))  # noqa: S608
-            elif k == "row":
-                c.execute("DELETE FROM rows WHERE name=?", (ch["id"],))
+            table = {"game": "games", "script": "scripts", "account": "accounts", "row": "rows"}
+            if k in table:  # keep the tombstone locally so it is not re-pushed or resurrected
+                col = "name" if k == "row" else "id"
+                c.execute(
+                    f"UPDATE {table[k]} SET deleted=1, updated_at=?, version=? WHERE {col}=?",  # noqa: S608
+                    (ts, v, ch["id"]),
+                )
+            if k == "account" and self.vault:
+                self.vault.delete(ch["id"])
             return
         if k == "game":
             c.execute(
-                "INSERT OR REPLACE INTO games VALUES (?,?,?,?,?)",
+                "INSERT OR REPLACE INTO games(id, package, profile, updated_at, version, deleted)"
+                " VALUES (?,?,?,?,?,0)",
                 (d["id"], d["package"], json.dumps(d), ts, v),
             )
         elif k == "script":
             c.execute(
-                "INSERT OR REPLACE INTO scripts VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO scripts(id, game_id, mode, graph, ref_width, ref_height,"
+                " ref_dpi, updated_at, version, deleted) VALUES (?,?,?,?,?,?,?,?,?,0)",
                 (
                     d["id"],
                     d["game_id"],
@@ -154,7 +164,8 @@ class SyncClient:
             )
         elif k == "account":
             c.execute(
-                "INSERT OR REPLACE INTO accounts VALUES (?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO accounts(id, game_id, label, username, updated_at, version,"
+                " deleted) VALUES (?,?,?,?,?,?,0)",
                 (ch["id"], d["game_id"], d["label"], d["username"], ts, v),
             )
         elif k == "secret":
@@ -167,14 +178,14 @@ class SyncClient:
             if cur:
                 c.execute(
                     "UPDATE rows SET game_id=?, account_id=?, mode_priority=?, schedule=?,"
-                    " updated_at=?, version=? WHERE id=?",
+                    " updated_at=?, version=?, deleted=0 WHERE id=?",
                     (*vals, cur["id"]),
                 )
             else:
                 c.execute(
                     "INSERT INTO rows(game_id, account_id, mode_priority, schedule,"
-                    " updated_at, version, name, emulator_kind, emulator_ref)"
-                    " VALUES (?,?,?,?,?,?,?,'','')",
+                    " updated_at, version, name, emulator_kind, emulator_ref, deleted)"
+                    " VALUES (?,?,?,?,?,?,?,'','',0)",
                     (*vals, d["name"]),
                 )
         elif k == "stats":

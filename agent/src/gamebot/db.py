@@ -12,7 +12,8 @@ SQL_TABLES: tuple[str, ...] = (
         mode_priority TEXT,
         schedule TEXT,
         updated_at TEXT,
-        version INTEGER DEFAULT 1
+        version INTEGER DEFAULT 1,
+        deleted INTEGER DEFAULT 0
     )
     """,
     """
@@ -21,7 +22,8 @@ SQL_TABLES: tuple[str, ...] = (
         package TEXT,
         profile TEXT,
         updated_at TEXT,
-        version INTEGER DEFAULT 1
+        version INTEGER DEFAULT 1,
+        deleted INTEGER DEFAULT 0
     )
     """,
     """
@@ -34,7 +36,8 @@ SQL_TABLES: tuple[str, ...] = (
         ref_height INTEGER,
         ref_dpi INTEGER,
         updated_at TEXT,
-        version INTEGER DEFAULT 1
+        version INTEGER DEFAULT 1,
+        deleted INTEGER DEFAULT 0
     )
     """,
     """
@@ -54,7 +57,8 @@ SQL_TABLES: tuple[str, ...] = (
         label TEXT,
         username TEXT,
         updated_at TEXT,
-        version INTEGER DEFAULT 1
+        version INTEGER DEFAULT 1,
+        deleted INTEGER DEFAULT 0
     )
     """,
     """
@@ -92,7 +96,14 @@ def connect(path: str, check_same_thread: bool = True) -> sqlite3.Connection:
     return conn
 
 
+SYNCED_TABLES = ("rows", "games", "scripts", "accounts")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     for sql in SQL_TABLES:
         conn.execute(sql)
+    for t in SYNCED_TABLES:  # tombstone flag for databases created before it existed
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({t})")}
+        if "deleted" not in cols:
+            conn.execute(f"ALTER TABLE {t} ADD COLUMN deleted INTEGER DEFAULT 0")  # noqa: S608
     conn.commit()

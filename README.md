@@ -33,6 +33,6 @@ Plan: [docs/PLAN.md](docs/PLAN.md). Đóng gói: [docs/PACKAGING.md](docs/PACKAG
 - Chưa chạy với giả lập hay game thật (máy phát triển chỉ có `adb`). Định dạng output ldconsole/memuc/NoxConsole/gmtool, cổng ADB của Nox/MEmu/BlueStacks là giả định cần kiểm tra trên máy thật.
 - Recorder ghi qua UI (người dùng bấm trên ảnh màn hình live, agent thực hiện và ghi); chưa bắt thao tác trực tiếp trên cửa sổ giả lập (`getevent`).
 - OCR (`rapidocr-onnxruntime`) là phụ thuộc tuỳ chọn, chưa cài/chạy; chỉ kiểm thử qua OCR giả. Python 3.15 trên máy này có thể chưa có wheel.
-- Sync: chưa có tombstone khi xoá cục bộ (xoá không lan sang máy khác); thống kê bước dùng tổng số lần chạy làm version; dòng đồng bộ theo `name` (gắn máy giả lập giữ cục bộ).
+- Sync: xoá rows/scripts/games/accounts lan sang máy khác qua tombstone (last-write-wins; tạo lại cùng tên sau khi xoá thì bản mới thắng); thống kê bước dùng tổng số lần chạy làm version; dòng đồng bộ theo `name` (gắn máy giả lập giữ cục bộ).
 - Chưa có xác thực/phân quyền ngoài token, chưa rate limit server; server CDM thật chưa biết API nên dựng server mới.
 - Game có thể cấm bot; dùng có rủi ro khoá tài khoản.

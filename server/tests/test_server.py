@@ -62,3 +62,26 @@ def test_blobs():
     assert c.get("/blobs/s1/t.png", headers=h).content == b"\x89PNG"
     assert [b["key"] for b in c.get("/blobs", headers=h).json()] == ["s1/t.png"]
     assert c.get("/blobs/none", headers=h).status_code == 404
+
+
+def test_tombstone_replicates_and_lww_applies():
+    c, h, _ = setup()
+    c.post("/sync", json={"changes": [ch("a", 1, "2026-01-01T00:00:00")]}, headers=h)
+    tomb = {
+        "kind": "script",
+        "id": "a",
+        "version": 2,
+        "updated_at": "2026-01-02T00:00:00",
+        "deleted": True,
+        "data": None,
+    }
+    c.post("/sync", json={"changes": [tomb]}, headers=h)
+    got = c.post("/sync", json={"since": 0}, headers=h).json()["changes"]
+    assert got[0]["deleted"] is True and got[0]["data"] is None
+    # an older edit arriving later must not resurrect the record
+    r = c.post("/sync", json={"changes": [ch("a", 2, "2026-01-01T12:00:00")]}, headers=h).json()
+    assert r["conflicts"] == [{"kind": "script", "id": "a", "kept": "server"}]
+    assert c.post("/sync", json={"since": 0}, headers=h).json()["changes"][0]["deleted"] is True
+    # a newer re-create does
+    c.post("/sync", json={"changes": [ch("a", 3, "2026-01-03T00:00:00")]}, headers=h)
+    assert c.post("/sync", json={"since": 0}, headers=h).json()["changes"][0]["deleted"] is False

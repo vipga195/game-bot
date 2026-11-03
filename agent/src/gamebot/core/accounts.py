@@ -86,16 +86,23 @@ class AccountRepo:
 
     def get(self, account_id: str) -> Account | None:
         r = self.conn.execute(
-            "SELECT id, game_id, label, username FROM accounts WHERE id=?", (account_id,)
+            "SELECT id, game_id, label, username FROM accounts WHERE id=? AND deleted=0",
+            (account_id,),
         ).fetchone()
         return Account(**dict(r)) if r else None
 
     def list(self) -> list[Account]:
-        rows = self.conn.execute("SELECT id, game_id, label, username FROM accounts").fetchall()
+        rows = self.conn.execute(
+            "SELECT id, game_id, label, username FROM accounts WHERE deleted=0"
+        ).fetchall()
         return [Account(**dict(r)) for r in rows]
 
     def delete(self, account_id: str) -> None:
-        self.conn.execute("DELETE FROM accounts WHERE id=?", (account_id,))
+        self.conn.execute(
+            "UPDATE accounts SET deleted=1, updated_at=?, version=version+1"
+            " WHERE id=? AND deleted=0",
+            (now(), account_id),
+        )
         self.conn.commit()
         self.vault.delete(account_id)
 

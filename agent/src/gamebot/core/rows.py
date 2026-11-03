@@ -87,7 +87,22 @@ class RowRepo:
             row.schedule.model_dump_json(),
             now(),
         )
-        if row.id is None:
+        dead = (
+            self.conn.execute(
+                "SELECT id FROM rows WHERE name=? AND deleted=1", (row.name,)
+            ).fetchone()
+            if row.id is None
+            else None
+        )
+        if dead:  # re-creating a deleted name revives its tombstone with a higher version
+            row.id = dead["id"]
+            self.conn.execute(
+                "UPDATE rows SET name=?, emulator_kind=?, emulator_ref=?, game_id=?, account_id=?,"
+                " mode_priority=?, schedule=?, updated_at=?, version=version+1, deleted=0"
+                " WHERE id=?",
+                (*vals, row.id),
+            )
+        elif row.id is None:
             cur = self.conn.execute(
                 "INSERT INTO rows(name, emulator_kind, emulator_ref, game_id, account_id,"
                 " mode_priority, schedule, updated_at, version) VALUES (?,?,?,?,?,?,?,?,1)",
@@ -119,12 +134,18 @@ class RowRepo:
         )
 
     def get(self, row_id: int) -> Row | None:
-        r = self.conn.execute("SELECT * FROM rows WHERE id=?", (row_id,)).fetchone()
+        r = self.conn.execute("SELECT * FROM rows WHERE id=? AND deleted=0", (row_id,)).fetchone()
         return self._from(r) if r else None
 
     def list(self) -> list[Row]:
-        return [self._from(r) for r in self.conn.execute("SELECT * FROM rows ORDER BY id")]
+        return [
+            self._from(r)
+            for r in self.conn.execute("SELECT * FROM rows WHERE deleted=0 ORDER BY id")
+        ]
 
     def delete(self, row_id: int) -> None:
-        self.conn.execute("DELETE FROM rows WHERE id=?", (row_id,))
+        self.conn.execute(
+            "UPDATE rows SET deleted=1, updated_at=?, version=version+1 WHERE id=? AND deleted=0",
+            (now(), row_id),
+        )
         self.conn.commit()

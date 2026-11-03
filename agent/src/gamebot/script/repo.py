@@ -19,7 +19,7 @@ class ScriptRepo:
         version = (cur["version"] + 1) if cur else 1
         self.conn.execute(
             "INSERT OR REPLACE INTO scripts(id, game_id, mode, graph, ref_width, ref_height,"
-            " ref_dpi, updated_at, version) VALUES (?,?,?,?,?,?,?,?,?)",
+            " ref_dpi, updated_at, version, deleted) VALUES (?,?,?,?,?,?,?,?,?,0)",
             (
                 s.id,
                 s.game_id,
@@ -35,12 +35,24 @@ class ScriptRepo:
         self.conn.commit()
 
     def load(self, script_id: str) -> Script | None:
-        r = self.conn.execute("SELECT graph FROM scripts WHERE id=?", (script_id,)).fetchone()
+        r = self.conn.execute(
+            "SELECT graph FROM scripts WHERE id=? AND deleted=0", (script_id,)
+        ).fetchone()
         return Script.model_validate_json(r["graph"]) if r else None
 
     def for_game(self, game_id: str, mode: str) -> Script | None:
         r = self.conn.execute(
-            "SELECT graph FROM scripts WHERE game_id=? AND mode=? ORDER BY updated_at DESC",
+            "SELECT graph FROM scripts WHERE game_id=? AND mode=? AND deleted=0"
+            " ORDER BY updated_at DESC",
             (game_id, mode),
         ).fetchone()
         return Script.model_validate_json(r["graph"]) if r else None
+
+    def delete(self, script_id: str) -> None:
+        """Tombstone: keeps the row so the deletion syncs to other machines."""
+        self.conn.execute(
+            "UPDATE scripts SET deleted=1, updated_at=?, version=version+1"
+            " WHERE id=? AND deleted=0",
+            (now(), script_id),
+        )
+        self.conn.commit()
