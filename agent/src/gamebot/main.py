@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .core.accounts import AccountRepo, KeyringVault, Vault
@@ -93,6 +94,12 @@ def create_app(
             bg["s"].shutdown(wait=False)
 
     app = FastAPI(title="gamebot-agent", lifespan=lifespan)
+    app.add_middleware(  # the UI runs on another local origin (Vite dev, Tauri/Electron)
+        CORSMiddleware,
+        allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|tauri://localhost|app://.*)$",
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.state.registry, app.state.scheduler, app.state.conn = registry, sched, conn
     rec: dict[str, Recorder] = {}
     make_dev = device_factory or (lambda serial: Device(connect_serial(serial)))

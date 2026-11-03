@@ -9,3 +9,5 @@ data/
 .env
 .env.*
 CLAUDE.local.md
+dist/
+tsconfig.tsbuildinfo
