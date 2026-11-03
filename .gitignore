@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+node_modules/
+*.sqlite3
+data/
+.env
+.env.*
+CLAUDE.local.md
+dist/
+tsconfig.tsbuildinfo
+release/
