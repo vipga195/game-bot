@@ -23,9 +23,10 @@ export interface Row {
   enabled: boolean
   state?: string
 }
-export interface Game { id: string; package: string }
+export interface Game { id: string; package: string; still_s?: number }
 export interface Account { id: string; game_id: string; label: string; username: string }
 export interface AgentEvent { row: number; state: string; mode?: string; error?: string; message?: string }
+export type NotifyChannel = { id: string; kind: string; name: string; level: 'error' | 'all'; enabled: boolean; config: { chat_id?: string; page_id?: string; recipient_id?: string; send_image?: boolean } }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(BASE + path, {
@@ -63,6 +64,11 @@ export const api = {
   recorderFinish: () => post<{ script_id: string; steps: number }>('/recorder/finish'),
   sync: (b: { url: string; token: string; passphrase?: string }) =>
     post<{ pushed: number; applied: number; conflicts: unknown[]; assets: number }>('/sync', b),
+  notifyChannels: () => req<NotifyChannel[]>('/notify/channels'),
+  addNotifyChannel: (b: { kind: string; name: string; level: 'error' | 'all'; config: NotifyChannel['config']; secret: string }) =>
+    post<NotifyChannel>('/notify/channels', b),
+  deleteNotifyChannel: (id: string) => req(`/notify/channels/${id}`, { method: 'DELETE' }),
+  testNotify: (id: string) => post<{ ok: boolean; error?: string }>('/notify/test', { id }),
   events: (onEvent: (e: AgentEvent) => void) => {
     const ws = new WebSocket(BASE.replace(/^http/, 'ws') + '/ws')
     ws.onmessage = (m) => onEvent(JSON.parse(m.data))

@@ -12,6 +12,7 @@ class Game(BaseModel):
     package: str
     popups: list[dict] = Field(default_factory=list)  # serialised PopupHandler dicts
     event_ocr_region: tuple[float, float, float, float] | None = None  # countdown on screen
+    still_s: float = Field(default=0.0, ge=0)  # frozen-screen seconds; 0 = off
 
 
 class GameRepo:

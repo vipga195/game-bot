@@ -79,6 +79,7 @@ class Scheduler:
             self.executor.submit(self._job, row_id, mode)
 
     def _job(self, row_id: int, mode: str) -> None:
+        res = None
         row = self.rows.get(row_id)
         ok, err = False, "row deleted"
         if row:
@@ -92,7 +93,8 @@ class Scheduler:
             self.rows.save(row)
         with self.lock:
             self.running.discard(row_id)
-            self._emit(row_id, "idle" if ok else "error", mode=mode, error=err)
+            extra = {} if ok else {"screenshot": getattr(res, "screenshot", None)}
+            self._emit(row_id, "idle" if ok else "error", mode=mode, error=err, **extra)
             self._dispatch()
 
 

@@ -472,6 +472,7 @@ dependencies = [
     { name = "apscheduler" },
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "keyring" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -487,7 +488,6 @@ ocr = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "sqlalchemy" },
@@ -499,6 +499,7 @@ requires-dist = [
     { name = "apscheduler", specifier = ">=3.11.3" },
     { name = "cryptography", specifier = ">=50.0.2" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "keyring", specifier = ">=25.7.0" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "opencv-python-headless", specifier = ">=5.0.0.93" },
@@ -510,7 +511,6 @@ provides-extras = ["ocr"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "sqlalchemy", specifier = ">=2.1.6" },

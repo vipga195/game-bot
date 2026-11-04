@@ -10,6 +10,7 @@ th, td { border: 1px solid #8884; padding: 6px; vertical-align: top; text-align:
 .state { padding: 2px 8px; border-radius: 10px; background: #8883; }
 .state.running { background: #2a72; } .state.error { background: #c002; } .state.queued { background: #fa02; }
 .err { color: #c00; }
+.ok { color: #080; }
 .forms { display: flex; gap: 32px; margin-top: 16px; flex-wrap: wrap; }
 .forms form { display: flex; flex-direction: column; gap: 6px; min-width: 260px; }
 .screen { max-height: 70vh; border: 1px solid #8886; cursor: crosshair; }

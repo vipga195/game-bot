@@ -20,6 +20,7 @@ beforeEach(() => {
       '/rows': init?.method === 'POST' && init.body ? JSON.parse(init.body as string) : rows,
       '/games': [{ id: 'g1', package: 'com.g' }],
       '/accounts': [],
+      '/notify/channels': [],
       '/instances': [{ kind: 'ldplayer', name: 'LD0', ref: '0', serial: 'emulator-5554', running: true }],
     }
     return new Response(JSON.stringify(data[path] ?? { ok: true }), { status: 200 })

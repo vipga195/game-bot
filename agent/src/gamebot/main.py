@@ -32,6 +32,8 @@ from .emulators import (
     NoxDriver,
     Registry,
 )
+from .notify import Notifier
+from .notify.repo import ChannelRepo
 from .play import LiveRecorder, Recorder, iter_lines
 from .script import AssetStore
 from .script.repo import ScriptRepo
@@ -97,6 +99,18 @@ class SyncIn(BaseModel):
     passphrase: str | None = None
 
 
+class ChannelIn(BaseModel):
+    kind: str
+    name: str
+    level: str
+    config: dict
+    secret: str
+
+
+class NotifyTestIn(BaseModel):
+    id: str
+
+
 def create_app(
     registry: Registry | None = None,
     data_dir: str | Path | None = None,
@@ -118,11 +132,15 @@ def create_app(
     rows, games, accounts = RowRepo(conn), GameRepo(conn), AccountRepo(conn, vault)
     runner = RowRunner(conn, registry, accounts, data / "assets", device_factory)
     events: list[dict] = []
+    channel_repo = ChannelRepo(conn, vault)
+    notifier = Notifier(channel_repo.build())
 
     def on_event(e: dict) -> None:
-        logging.getLogger("gamebot.sched").info("%s", {k: v for k, v in e.items() if k != "x"})
-        events.append({**e, "ts": datetime.now(UTC).isoformat()})
+        public = {k: v for k, v in e.items() if k != "screenshot"}  # bytes never reach logs/ws
+        logging.getLogger("gamebot.sched").info("%s", {k: v for k, v in public.items() if k != "x"})
+        events.append({**public, "ts": datetime.now(UTC).isoformat()})
         del events[:-200]
+        notifier.handle(e)
 
     sched = Scheduler(rows, runner.run, lambda: datetime.now(UTC), on_event=on_event)
     bg = {}
@@ -134,6 +152,7 @@ def create_app(
         yield
         if "s" in bg:
             bg["s"].shutdown(wait=False)
+        notifier.close()
 
     app = FastAPI(title="gamebot-agent", lifespan=lifespan)
     app.add_middleware(  # the UI runs on another local origin (Vite dev, Tauri/Electron)
@@ -143,6 +162,7 @@ def create_app(
         allow_headers=["*"],
     )
     app.state.registry, app.state.scheduler, app.state.conn = registry, sched, conn
+    app.state.notifier = notifier
     rec: dict[str, Recorder] = {}
     rec_live: dict[str, LiveRecorder] = {}
     make_dev = device_factory or (lambda serial: Device(connect_serial(serial)))
@@ -288,6 +308,37 @@ def create_app(
         ScriptRepo(conn).save(script)
         rec.pop("cur")
         return {"script_id": script.id, "steps": len(script.steps)}
+
+    # ---- notification channels (secrets live in the vault only) -------------
+    @app.get("/notify/channels")
+    def list_channels() -> list[dict]:
+        return channel_repo.list()
+
+    @app.post("/notify/channels")
+    def add_channel(b: ChannelIn) -> dict:
+        try:
+            ch = channel_repo.add(b.kind, b.name, b.config, b.secret, b.level)
+        except ValueError:
+            raise HTTPException(400, "invalid channel config") from None
+        notifier.set_channels(channel_repo.build())
+        return ch
+
+    @app.delete("/notify/channels/{channel_id}")
+    def delete_channel(channel_id: str) -> dict:
+        channel_repo.delete(channel_id)
+        notifier.set_channels(channel_repo.build())
+        return {"ok": True}
+
+    @app.post("/notify/test")
+    def test_channel(b: NotifyTestIn) -> dict:
+        ch = channel_repo.get_channel(b.id)
+        if ch is None:
+            raise HTTPException(404, "channel not found")
+        try:
+            ch.send("gamebot test", "test message")
+        except Exception:
+            return {"ok": False, "error": "send failed"}
+        return {"ok": True}
 
     # ---- sync --------------------------------------------------------------
     @app.post("/sync")
