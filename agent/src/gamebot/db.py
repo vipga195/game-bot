@@ -85,6 +85,16 @@ SQL_TABLES: tuple[str, ...] = (
         created_at TEXT
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS notify_channels (
+        id TEXT PRIMARY KEY,
+        kind TEXT,
+        name TEXT,
+        config TEXT,
+        level TEXT,
+        enabled INTEGER DEFAULT 1
+    )
+    """,
 )
 
 

@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
+import cv2
 import numpy as np
 
 from ..script import AssetStore, Script, Step
@@ -21,6 +22,14 @@ class StepFailed(Exception):
     def __init__(self, step: Step, reason: str, screenshot: bytes | None = None):
         super().__init__(f"{step.id}: {reason}")
         self.step, self.reason, self.screenshot = step, reason, screenshot
+
+
+class GameLost(Exception):
+    """Game left the foreground: stop instead of tapping blind."""
+
+
+class ScreenFrozen(Exception):
+    """Screen unchanged for too long: game likely hung."""
 
 
 class Hooks(Protocol):
@@ -56,6 +65,24 @@ class PlayerConfig:
     force_size: bool = True
     secrets: Callable[[str], str] | None = None  # resolves "{username}" / "{password}"
     events: list = field(default_factory=list)
+    watch_package: str | None = None
+    fg_check_s: float = 5.0
+    still_s: float = 0.0  # 0 (default) disables the frozen-screen check
+    still_diff: float = 2.0  # mean abs diff (0-255) of thumbnails below which frames are "same"
+    fg_misses: int = 3  # consecutive foreground mismatches before GameLost
+    fg_ignore: tuple[str, ...] = ("com.google.android.gms", "com.android.systemui")
+
+
+def _thumb(raw: bytes) -> np.ndarray:
+    """Small grayscale thumbnail without the status-bar rows (clock/battery noise)."""
+    img = decode(raw)
+    img = img[int(img.shape[0] * 0.06) :]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    return cv2.resize(gray, (48, 27), interpolation=cv2.INTER_AREA)
+
+
+def _diff(a: np.ndarray, b: np.ndarray) -> float:
+    return float(np.abs(a.astype(np.int16) - b.astype(np.int16)).mean())
 
 
 class Player:
@@ -76,6 +103,10 @@ class Player:
         self.paused = False
         self._letterbox = False
         self._expected: tuple[int, int, int] | None = None
+        self._last_fg = self.clock()
+        self._last_thumb: np.ndarray | None = None
+        self._fg_miss = 0
+        self._still_since = self.clock()
 
     # ---- screen handling -------------------------------------------------
     def _check_size(self) -> None:
@@ -83,10 +114,36 @@ class Player:
         if self._expected and (i.width, i.height, i.dpi) != self._expected:
             raise ScreenChanged(f"screen changed to {i.width}x{i.height}@{i.dpi}")
 
+    def _watch(self, raw: bytes) -> None:
+        now = self.clock()
+        if self.cfg.watch_package and now - self._last_fg >= self.cfg.fg_check_s:
+            self._last_fg = now
+            pkg = self.dev.foreground_package()
+            if pkg is None or pkg == self.cfg.watch_package or pkg in self.cfg.fg_ignore:
+                if pkg == self.cfg.watch_package:
+                    self._fg_miss = 0
+            else:
+                self._fg_miss += 1
+                if self._fg_miss >= self.cfg.fg_misses:
+                    raise GameLost(f"game not in foreground: {pkg}")
+        if self.cfg.still_s > 0:
+            thumb = _thumb(raw)
+            last = self._last_thumb
+            if (
+                last is None
+                or last.shape != thumb.shape
+                or _diff(last, thumb) >= self.cfg.still_diff
+            ):
+                self._last_thumb, self._still_since = thumb, now
+            elif now - self._still_since >= self.cfg.still_s:
+                raise ScreenFrozen(f"screen unchanged for {self.cfg.still_s:.0f}s")
+
     def grab(self) -> np.ndarray:
         """Current screen normalised to the script's reference size (letterboxed if needed)."""
         self._check_size()
-        img = decode(self.dev.screencap())
+        raw = self.dev.screencap()
+        img = decode(raw)
+        self._watch(raw)
         if self._letterbox:
             img, self._scale, self._ox, self._oy = letterbox(
                 img, self.script.ref_width, self.script.ref_height
@@ -137,6 +194,7 @@ class Player:
             for step in s.steps:
                 while self.paused:
                     self.sleep(self.cfg.poll)
+                    self._still_since = self.clock()  # a pause is not a frozen screen
                 self.run_step(step)
         finally:
             if forced:

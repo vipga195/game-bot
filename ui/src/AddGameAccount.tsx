@@ -3,7 +3,7 @@ import { api, type Game } from './api'
 
 export function AddGameAccount() {
   const [games, setGames] = useState<Game[]>([])
-  const [g, setG] = useState({ id: '', package: '' })
+  const [g, setG] = useState({ id: '', package: '', still_s: 0 })
   const [a, setA] = useState({ game_id: '', label: '', username: '', password: '' })
   const [msg, setMsg] = useState('')
   const reload = useCallback(async () => {
@@ -14,10 +14,17 @@ export function AddGameAccount() {
   return (
     <>
       <div className="forms">
-        <form onSubmit={async (e) => { e.preventDefault(); await api.saveGame(g); setG({ id: '', package: '' }); done('Đã lưu game') }}>
+        <form onSubmit={async (e) => { e.preventDefault(); await api.saveGame(g); setG({ id: '', package: '', still_s: 0 }); done('Đã lưu game') }}>
           <h3>Thêm game</h3>
-          <input aria-label="Mã game" placeholder="Mã game" value={g.id} onChange={(e) => setG({ ...g, id: e.target.value })} required />
+          <input aria-label="Mã game" placeholder="Mã game" value={g.id} onChange={(e) => {
+            const id = e.target.value
+            const prev = games.find((x) => x.id === g.id)
+            const match = games.find((x) => x.id === id)
+            setG(match && !prev ? { ...g, id, still_s: match.still_s ?? 0 } : { ...g, id })
+          }} required />
           <input aria-label="Package" placeholder="com.example.game" value={g.package} onChange={(e) => setG({ ...g, package: e.target.value })} required />
+          <input type="number" min="0" aria-label="Phát hiện đứng hình (giây, 0 = tắt)" placeholder="Phát hiện đứng hình (giây, 0 = tắt)" value={g.still_s} onChange={(e) => setG({ ...g, still_s: Number(e.target.value) })} />
+          <button type="button" onClick={() => setG({ ...g, still_s: 180 })}>Gợi ý: 180</button>
           <button>Lưu game</button>
         </form>
         <form onSubmit={async (e) => { e.preventDefault(); await api.addAccount(a); setA({ ...a, label: '', username: '', password: '' }); done('Đã lưu tài khoản') }}>

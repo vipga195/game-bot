@@ -9,7 +9,7 @@ from pathlib import Path
 from ..device import Device, connect_serial
 from ..emulators import Registry
 from ..learn import Learner, PopupHandler
-from ..play import Player, PlayerConfig, ScreenChanged, StepFailed
+from ..play import GameLost, Player, PlayerConfig, ScreenChanged, ScreenFrozen, StepFailed
 from ..script import AssetStore
 from ..script.repo import ScriptRepo
 from ..vision import decode, parse_countdown
@@ -68,7 +68,9 @@ class RowRunner:
         popups = [PopupHandler(**p) for p in game.popups]
         learner = Learner(self.conn, script, assets, popup_assets, popups)
         cfg = PlayerConfig(
-            secrets=self.accounts.secrets(row.account_id) if row.account_id else None
+            secrets=self.accounts.secrets(row.account_id) if row.account_id else None,
+            watch_package=game.package,
+            still_s=game.still_s,
         )
         player = Player(dev, script, assets, cfg, learner, self.sleep)
         self.players[row.id] = player
@@ -87,6 +89,7 @@ class RowRunner:
         script = self.scripts.for_game(row.game_id, mode)
         if game is None or script is None:
             return RunResult(False, f"missing game/script for mode {mode}")
+        dev = None
         try:
             dev = self.device_factory(self.ensure_serial(row))
             dev.start_app(game.package)
@@ -101,8 +104,16 @@ class RowRunner:
             return RunResult(True)
         except StepFailed as e:
             return RunResult(False, str(e), e.screenshot)
+        except (GameLost, ScreenFrozen) as e:
+            return RunResult(False, f"{type(e).__name__}: {e}", self._screenshot(dev))
         except (ScreenChanged, TimeoutError, KeyError) as e:
             return RunResult(False, f"{type(e).__name__}: {e}")
+
+    def _screenshot(self, dev: Device | None) -> bytes | None:
+        try:
+            return dev.screencap() if dev else None
+        except Exception:
+            return None
 
     def read_event_time(self, row: Row, dev: Device, now_utc) -> str | None:
         """OCR the in-game countdown and return the event start (ISO UTC), or None."""
